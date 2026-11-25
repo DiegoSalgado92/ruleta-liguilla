@@ -70,6 +70,7 @@ button.ghost{background:transparent;color:var(--ink);border:2px solid var(--line
         <label for="name">Escribe tu nombre</label>
         <input id="name" autocomplete="given-name" maxlength="30" placeholder="Escribe aquí tu nombre" required>
         <button type="submit">Continuar</button>
+        <p class="msg err" id="nmsg"></p>
       </form>
 
       <div id="stepWheel" class="hide">
@@ -132,7 +133,16 @@ const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const norm = s => String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").trim().toLowerCase().replace(/\s+/g," ");
 
 let picks = {}, me = "", spinning = false, rot = 0, drawn = [], online = false;
-try{ me = localStorage.getItem("ruleta-nombre") || ""; }catch(e){}
+let device = "", mios = new Set();
+try{
+  me = localStorage.getItem("ruleta-nombre") || "";
+  device = localStorage.getItem("ruleta-device") || "";
+  if(!device){ device = Array.from(crypto.getRandomValues(new Uint8Array(12)),b=>b.toString(16).padStart(2,"0")).join(""); localStorage.setItem("ruleta-device", device); }
+  mios = new Set(JSON.parse(localStorage.getItem("ruleta-mios") || "[]"));
+}catch(e){ if(!device) device = String(Math.random()).slice(2); }
+const saveMio = n => { mios.add(norm(n)); try{ localStorage.setItem("ruleta-mios", JSON.stringify([...mios])); }catch(e){} };
+const takenByOther = n => { const k = norm(n); return TEAMS.some(t=>picks[t.id] && norm(picks[t.id].name)===k) && !mios.has(k); };
+const dupMsg = n => `Ya hay alguien registrado como "${n}". Escribe otro nombre o agrega tu apellido.`;
 
 const free = () => TEAMS.filter(t=>!picks[t.id]);
 const mine = () => { const k = norm(me); return TEAMS.find(t=>picks[t.id] && norm(picks[t.id].name)===k); };
@@ -170,6 +180,10 @@ function showResult(t){
 
 function route(){
   if(spinning) return;
+  if(me && takenByOther(me)){
+    $("nmsg").textContent = dupMsg(me); me = "";
+    try{ localStorage.removeItem("ruleta-nombre"); }catch(e){}
+  }
   if(!me){ show("stepName"); return; }
   const t = mine();
   if(t){ showResult(t); return; }
@@ -200,6 +214,8 @@ $("stepName").addEventListener("submit", e=>{
   e.preventDefault();
   const v = $("name").value.trim().replace(/\s+/g," ");
   if(!v) return;
+  if(takenByOther(v)){ $("nmsg").textContent = dupMsg(v); $("name").focus(); return; }
+  $("nmsg").textContent = "";
   me = v;
   try{ localStorage.setItem("ruleta-nombre", me); }catch(e){}
   $("msg").textContent = ""; $("msg").className = "msg";
@@ -218,8 +234,14 @@ $("spin").addEventListener("click", async ()=>{
   spinning = true; $("spin").disabled = true;
   let data;
   try{
-    const r = await fetch(API, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:me})});
+    const r = await fetch(API, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:me, device})});
     data = await r.json();
+    if(r.status===409 && data.code==="name_taken"){
+      spinning = false; msg.textContent = "";
+      $("nmsg").textContent = dupMsg(me); me = "";
+      try{ localStorage.removeItem("ruleta-nombre"); }catch(e){}
+      show("stepName"); load(); return;
+    }
     if(!r.ok) throw new Error(data.error || "Error");
   }catch(e){
     spinning = false; $("spin").disabled = false;
@@ -227,7 +249,7 @@ $("spin").addEventListener("click", async ()=>{
     load(); return;
   }
   const won = byId[data.team];
-  picks[won.id] = {name: me};
+  picks[won.id] = {name: me}; saveMio(me);
   if(data.already){ spinning = false; msg.textContent = ""; renderBoard(); showResult(won); return; }
   if(!drawn.includes(won)) drawWheel([...drawn, won]);
   const list = drawn, i = list.indexOf(won), a = 360/list.length;

@@ -14,7 +14,7 @@ async function readPicks(store) {
 }
 
 export default async (req) => {
-  const store = getStore({ name: "liguilla-apertura-2026-v2", consistency: "strong" });
+  const store = getStore({ name: "liguilla-apertura-2026-v3", consistency: "strong" });
 
   if (req.method === "GET") return json({ picks: await readPicks(store) });
 
@@ -23,10 +23,14 @@ export default async (req) => {
     try { body = await req.json(); } catch {}
     const name = String(body.name || "").trim().replace(/\s+/g, " ").slice(0, 30);
     if (!name) return json({ error: "Escribe tu nombre." }, 400);
+    const device = String(body.device || "").slice(0, 64);
     const key = `name/${encodeURIComponent(norm(name))}`;
 
     const existing = await store.get(key, { type: "json" });
-    if (existing) return json({ team: existing.team, already: true });
+    if (existing) {
+      if (existing.device && existing.device === device) return json({ team: existing.team, already: true });
+      return json({ error: "Ese nombre ya está registrado.", code: "name_taken" }, 409);
+    }
 
     const picks = await readPicks(store);
     const free = TEAMS.filter(id => !picks[id]);
@@ -37,12 +41,13 @@ export default async (req) => {
     for (const id of free) {
       const { modified } = await store.setJSON(`team/${id}`, { name, at: Date.now() }, { onlyIfNew: true });
       if (!modified) continue; // otra persona lo ganó un instante antes
-      const claimed = await store.setJSON(key, { team: id }, { onlyIfNew: true });
+      const claimed = await store.setJSON(key, { team: id, device }, { onlyIfNew: true });
       if (!claimed.modified) {
         // el mismo nombre giró dos veces al mismo tiempo: se devuelve el equipo y se respeta el primero
         await store.delete(`team/${id}`);
         const first = await store.get(key, { type: "json" });
-        return json({ team: first.team, already: true });
+        if (first && first.device === device) return json({ team: first.team, already: true });
+        return json({ error: "Ese nombre ya está registrado.", code: "name_taken" }, 409);
       }
       return json({ team: id });
     }
