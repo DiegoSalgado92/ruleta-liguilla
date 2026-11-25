@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ruleta de la Liguilla</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: fiesta familiar de domingo, emoción de estadio, frases cortas.
+   IDEA: la ruleta como marcador iluminado bajo los reflectores de una noche de liguilla.
+   PICTURE: la ruleta grande con los colores reales de los 8 clubes, puntero dorado tipo trofeo.
+   COLOUR and TYPE: noche de estadio verde muy oscuro, pasto como banda, dorado trofeo de acento; Anton + Barlow.
+   LAYOUT: una columna en celular: título, paso actual (nombre / ruleta / resultado), tablero de la familia. */
+:root{color-scheme:dark;--bg:#07140f;--pitch:#0e2a1e;--line:#1f4a36;--ink:#f3f6f2;--mute:#9fb6aa;--gold:#f4c430;--card:#0c2118}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Barlow,system-ui,sans-serif;overflow-x:clip;min-height:100vh;
+  background-image:radial-gradient(60% 40% at 15% 0%,rgba(255,255,230,.13),transparent 70%),radial-gradient(60% 40% at 85% 0%,rgba(255,255,230,.13),transparent 70%)}
+.band{padding:clamp(20px,4vw,48px) max(5vw,16px)}
+.wrap{max-width:1000px;margin:0 auto}
+h1{font:400 clamp(36px,8vw,56px)/1.02 Anton,Impact,sans-serif;margin:0;text-wrap:balance;letter-spacing:.5px}
+h2{font:400 26px/1.1 Anton,Impact,sans-serif;margin:0 0 14px;letter-spacing:.4px}
+.sub{color:var(--mute);margin:8px 0 0;font-weight:600}
+.grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:28px;align-items:start;margin-top:24px}
+@media(max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px}
+label{display:block;font-weight:700;margin-bottom:8px}
+input{width:100%;font:600 18px Barlow,sans-serif;padding:14px 16px;border-radius:12px;border:2px solid var(--line);background:#06110c;color:var(--ink)}
+input:focus,button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+button{font:700 18px Barlow,sans-serif;min-height:52px;padding:12px 22px;border-radius:14px;border:0;cursor:pointer;background:var(--gold);color:#1a1300;width:100%;margin-top:14px}
+button:disabled{opacity:.55;cursor:wait}
+button.ghost{background:transparent;color:var(--ink);border:2px solid var(--line);font-size:16px;min-height:46px}
+.hello{font-weight:700;font-size:18px;margin:0 0 6px}
+.wheelbox{position:relative;width:min(100%,420px);aspect-ratio:1;margin:8px auto 0}
+.wheelbox svg{width:100%;height:100%;display:block}
+#wheel{transform-origin:50% 50%;transition:transform 5.2s cubic-bezier(.12,.72,.1,1)}
+@media(prefers-reduced-motion:reduce){#wheel{transition-duration:.01s}}
+.pin{position:absolute;left:50%;top:-6px;transform:translateX(-50%);width:34px;height:44px;filter:drop-shadow(0 4px 4px rgba(0,0,0,.5));z-index:2}
+.msg{min-height:24px;color:var(--mute);margin:12px 0 0;text-align:center;font-weight:600}
+.msg.err{color:#ff8f80}
+.result{text-align:center;border-radius:18px;padding:26px 18px;margin-top:6px}
+.result .big{font:400 clamp(40px,10vw,64px)/1 Anton,Impact,sans-serif;margin:6px 0 10px}
+.result p{margin:4px 0;font-weight:600}
+.board{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.board li{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 14px;border-radius:12px;background:#081a12;border:1px solid var(--line)}
+.dot{width:14px;height:14px;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+.team{font-weight:700;line-height:1.2}
+.team small{display:block;color:var(--mute);font-weight:600;font-size:13px}
+.who{font-weight:700;text-align:right;white-space:nowrap;max-width:9.5em;overflow:hidden;text-overflow:ellipsis}
+.who.free{color:var(--mute);font-weight:600}
+.count{color:var(--gold);font-weight:700;margin:-6px 0 14px}
+.note{font-size:14px;color:var(--mute);margin-top:14px}
+.hide{display:none}
+</style>
+</head>
+<body>
+<header class="band" style="padding-bottom:0">
+  <div class="wrap">
+    <h1>Ruleta de la Liguilla</h1>
+    <p class="sub">Liga MX · Apertura 2026 · Cuartos de final · A cada quien un equipo</p>
+  </div>
+</header>
+
+<main class="band">
+  <div class="wrap grid">
+    <section class="card" aria-live="polite">
+      <form id="stepName">
+        <h2>¿Quién va a girar?</h2>
+        <label for="name">Escribe tu nombre</label>
+        <input id="name" autocomplete="given-name" maxlength="30" placeholder="Por ejemplo: Tía Lupe" required>
+        <button type="submit">Continuar</button>
+      </form>
+
+      <div id="stepWheel" class="hide">
+        <p class="hello" id="hello"></p>
+        <div class="wheelbox">
+          <svg class="pin" viewBox="0 0 34 44" aria-hidden="true"><path d="M17 44 2 10a15 15 0 1 1 30 0Z" fill="#f4c430" stroke="#7a5a00" stroke-width="2"/><circle cx="17" cy="14" r="5" fill="#fff6cf"/></svg>
+          <svg viewBox="0 0 400 400" role="img" aria-label="Ruleta con los equipos disponibles">
+            <circle cx="200" cy="200" r="198" fill="#f4c430"/>
+            <g id="wheel"></g>
+            <circle cx="200" cy="200" r="34" fill="#07140f" stroke="#f4c430" stroke-width="5"/>
+            <text x="200" y="207" text-anchor="middle" fill="#f4c430" font-family="Anton,Impact" font-size="20">MX</text>
+          </svg>
+        </div>
+        <button id="spin" type="button">¡Girar la ruleta!</button>
+        <p class="msg" id="msg"></p>
+      </div>
+
+      <div id="stepResult" class="hide">
+        <div class="result" id="resultBox"></div>
+        <button class="ghost" id="other" type="button">Registrar a otra persona</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Así va la familia</h2>
+      <p class="count" id="count">Cargando…</p>
+      <ul class="board" id="board"></ul>
+      <p class="note" id="status">Conectando…</p>
+    </section>
+  </div>
+</main>
+
+<section id="admin" class="band hide" style="padding-top:0">
+  <div class="wrap card">
+    <h2>Administrador</h2>
+    <form id="resetForm">
+      <label for="akey">Clave de administrador</label>
+      <input id="akey" type="password" autocomplete="off">
+      <button type="submit">Borrar todos los resultados</button>
+    </form>
+    <p class="msg" id="amsg"></p>
+  </div>
+</section>
+<script>
+{
+const API = "/api/picks";
+const TEAMS = [
+  {id:"chivas",   n:"Chivas",    c:"#C8102E", t:"#ffffff", vs:"pachuca",  ida:"Ida: jue 26 nov · 19:00 · Estadio Hidalgo"},
+  {id:"america",  n:"América",   c:"#FFD100", t:"#0b2350", vs:"monterrey",ida:"Ida: mié 25 nov · 21:10 · Estadio BBVA"},
+  {id:"toluca",   n:"Toluca",    c:"#E4002B", t:"#ffffff", vs:"atlas",    ida:"Ida: mié 25 nov · 19:00 · Nemesio Diez"},
+  {id:"cruzazul", n:"Cruz Azul", c:"#0047BB", t:"#ffffff", vs:"leon",     ida:"Ida: jue 26 nov · en León"},
+  {id:"atlas",    n:"Atlas",     c:"#151515", t:"#ff4a3d", vs:"toluca",   ida:"Ida: mié 25 nov · 19:00 · Nemesio Diez"},
+  {id:"leon",     n:"León",      c:"#00703C", t:"#ffffff", vs:"cruzazul", ida:"Ida: jue 26 nov · en León"},
+  {id:"monterrey",n:"Monterrey", c:"#0A2D6E", t:"#ffffff", vs:"america",  ida:"Ida: mié 25 nov · 21:10 · Estadio BBVA"},
+  {id:"pachuca",  n:"Pachuca",   c:"#EEF1F5", t:"#0A2240", vs:"chivas",   ida:"Ida: jue 26 nov · 19:00 · Estadio Hidalgo"}
+];
+const byId = Object.fromEntries(TEAMS.map(t=>[t.id,t]));
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const norm = s => String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").trim().toLowerCase().replace(/\s+/g," ");
+
+let picks = {}, me = "", spinning = false, rot = 0, drawn = [], online = false;
+try{ me = localStorage.getItem("ruleta-nombre") || ""; }catch(e){}
+
+const free = () => TEAMS.filter(t=>!picks[t.id]);
+const mine = () => { const k = norm(me); return TEAMS.find(t=>picks[t.id] && norm(picks[t.id].name)===k); };
+
+function drawWheel(list){
+  drawn = list.slice();
+  const g = $("wheel"), n = list.length;
+  if(!n){ g.innerHTML = '<circle cx="200" cy="200" r="190" fill="#0e2a1e"/><text x="200" y="140" text-anchor="middle" fill="#9fb6aa" font-family="Barlow" font-weight="700" font-size="20">Ya no quedan equipos</text>'; return; }
+  const R = 190, a = 360/n, P = d => { const r=(d-90)*Math.PI/180; return [200+R*Math.cos(r), 200+R*Math.sin(r)]; };
+  g.innerHTML = list.map((t,i)=>{
+    const s=i*a, e=(i+1)*a, [x1,y1]=P(s), [x2,y2]=P(e), mid=s+a/2, ty = n===1?120:78;
+    const path = n===1 ? `<circle cx="200" cy="200" r="${R}" fill="${t.c}"/>`
+      : `<path d="M200 200 L${x1.toFixed(2)} ${y1.toFixed(2)} A${R} ${R} 0 ${a>180?1:0} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}Z" fill="${t.c}" stroke="#07140f" stroke-width="3"/>`;
+    return path + `<g transform="rotate(${mid} 200 200)"><text x="200" y="${ty}" text-anchor="middle" dominant-baseline="middle" fill="${t.t}" font-family="Anton,Impact" font-size="${n>6?19:23}" transform="rotate(90 200 ${ty})">${esc(t.n.toUpperCase())}</text></g>`;
+  }).join("");
+}
+
+function renderBoard(){
+  const taken = TEAMS.filter(t=>picks[t.id]).length;
+  $("count").textContent = taken===8 ? "¡Los 8 equipos ya tienen dueño!" : `${taken} de 8 equipos repartidos · quedan ${8-taken}`;
+  $("board").innerHTML = TEAMS.map(t=>{
+    const p = picks[t.id];
+    return `<li><span class="dot" style="background:${t.c}"></span><span class="team">${esc(t.n)}<small>vs ${esc(byId[t.vs].n)}</small></span><span class="who${p?"":" free"}">${p?esc(p.name):"Disponible"}</span></li>`;
+  }).join("");
+}
+
+function show(step){ for(const s of ["stepName","stepWheel","stepResult"]) $(s).classList.toggle("hide", s!==step); }
+
+function showResult(t){
+  const r = byId[t.vs], box = $("resultBox");
+  box.style.background = t.c; box.style.color = t.t;
+  box.innerHTML = `<p>${esc(me)}, te tocó</p><div class="big">${esc(t.n)}</div><p>Cuartos de final vs ${esc(r.n)}</p><p style="opacity:.85">${esc(t.ida)}</p>`;
+  show("stepResult");
+}
+
+function route(){
+  if(spinning) return;
+  if(!me){ show("stepName"); return; }
+  const t = mine();
+  if(t){ showResult(t); return; }
+  $("hello").textContent = `¡Hola, ${me}! Gira para ver qué equipo te toca.`;
+  drawWheel(free());
+  $("spin").disabled = !online || free().length===0;
+  show("stepWheel");
+}
+
+async function load(){
+  try{
+    const r = await fetch(API, {cache:"no-store"});
+    if(!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    const next = {};
+    for(const [id,v] of Object.entries(data.picks||{})) if(byId[id] && v && typeof v.name==="string") next[id] = {name:v.name.slice(0,30)};
+    picks = next; online = true;
+    $("status").textContent = "Se actualiza solo en todos los celulares.";
+  }catch(e){
+    online = false;
+    $("status").textContent = "No se pudo conectar con el tablero. Reintentando…";
+  }
+  renderBoard();
+  if(!spinning) route();
+}
+
+$("stepName").addEventListener("submit", e=>{
+  e.preventDefault();
+  const v = $("name").value.trim().replace(/\s+/g," ");
+  if(!v) return;
+  me = v;
+  try{ localStorage.setItem("ruleta-nombre", me); }catch(e){}
+  $("msg").textContent = ""; $("msg").className = "msg";
+  route();
+});
+
+$("other").addEventListener("click", ()=>{
+  me = ""; $("name").value = "";
+  try{ localStorage.removeItem("ruleta-nombre"); }catch(e){}
+  show("stepName"); $("name").focus();
+});
+
+$("spin").addEventListener("click", async ()=>{
+  if(spinning) return;
+  const msg = $("msg"); msg.className = "msg"; msg.textContent = "Girando…";
+  spinning = true; $("spin").disabled = true;
+  let data;
+  try{
+    const r = await fetch(API, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:me})});
+    data = await r.json();
+    if(!r.ok) throw new Error(data.error || "Error");
+  }catch(e){
+    spinning = false; $("spin").disabled = false;
+    msg.className = "msg err"; msg.textContent = e.message && e.message!=="Failed to fetch" ? e.message : "No se pudo guardar. Revisa tu conexión.";
+    load(); return;
+  }
+  const won = byId[data.team];
+  picks[won.id] = {name: me};
+  if(data.already){ spinning = false; msg.textContent = ""; renderBoard(); showResult(won); return; }
+  if(!drawn.includes(won)) drawWheel([...drawn, won]);
+  const list = drawn, i = list.indexOf(won), a = 360/list.length;
+  const target = 360 - (i*a + a/2) - (Math.random()-.5)*a*.6;
+  rot = rot - (rot%360) + 360*6 + target;
+  $("wheel").style.transform = `rotate(${rot}deg)`;
+  setTimeout(()=>{ spinning = false; msg.textContent = ""; renderBoard(); showResult(won); load(); },
+    matchMedia("(prefers-reduced-motion: reduce)").matches ? 300 : 5400);
+});
+
+if(location.hash === "#admin") $("admin").classList.remove("hide");
+$("resetForm").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const m = $("amsg");
+  try{
+    const r = await fetch(API, {method:"DELETE", headers:{"x-admin-key": $("akey").value}});
+    m.textContent = r.ok ? "Listo: el sorteo quedó en ceros." : "Clave incorrecta.";
+  }catch(err){ m.textContent = "No se pudo conectar."; }
+  load();
+});
+
+renderBoard(); route(); load();
+setInterval(()=>{ if(!document.hidden && !spinning) load(); }, 3000);
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) load(); });
+}
+</script>
+</body>
+</html>
