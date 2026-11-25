@@ -14,7 +14,7 @@ async function readPicks(store) {
 }
 
 export default async (req) => {
-  const store = getStore({ name: "liguilla-apertura-2026", consistency: "strong" });
+  const store = getStore({ name: "liguilla-apertura-2026-v2", consistency: "strong" });
 
   if (req.method === "GET") return json({ picks: await readPicks(store) });
 
