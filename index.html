@@ -201,7 +201,7 @@ async function load(){
     const next = {};
     for(const [id,v] of Object.entries(data.picks||{})) if(byId[id] && v && typeof v.name==="string") next[id] = {name:v.name.slice(0,30)};
     picks = next; online = true;
-    $("status").textContent = "Se actualiza solo en todos los celulares.";
+    $("status").textContent = "Se actualiza automáticamente en todo el tablero.";
   }catch(e){
     online = false;
     $("status").textContent = "No se pudo conectar con el tablero. Reintentando…";
